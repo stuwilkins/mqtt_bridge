@@ -19,26 +19,29 @@
 #ifndef MQTT_BRIDGE_H
 #define MQTT_BRIDGE_H
 
-#define MAX_TOPICS 1024
+#define MQTT_BRIDGE_MAX_TOPICS      1024
+#define MQTT_BRIDGE_MAX_STRLEN      1024
+
+#define MQTT_BRIDGE_TB_TOPIC        "v1/devices/me/telemetry"
 
 typedef struct {
-  char topic[256];
+  char topic[MQTT_BRIDGE_MAX_STRLEN];
+  char key[MQTT_BRIDGE_MAX_STRLEN];
   int qos;
   double factor;
-  char key[256];
 } homeauto_topic;
 
 typedef struct {
   MQTTAsync client;
   int connected;
-  char server[256];
-  char username[256];
-  char password[256];
-  char client_id[256];
+  char server[MQTT_BRIDGE_MAX_STRLEN];
+  char username[MQTT_BRIDGE_MAX_STRLEN];
+  char password[MQTT_BRIDGE_MAX_STRLEN];
+  char client_id[MQTT_BRIDGE_MAX_STRLEN];
 } mqtt_connection;
 
 typedef struct {
-  homeauto_topic topic[MAX_TOPICS];
+  homeauto_topic topic[MQTT_BRIDGE_MAX_TOPICS];
   int topics;
   int verbose;
   mqtt_connection mqtt_in;

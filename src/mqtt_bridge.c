@@ -38,8 +38,9 @@ void mqtt_on_success(void* context, MQTTAsync_successData* response)
 
 int mqtt_publish_thingsboard(homeauto_data *data, uint32_t ts, char *key, double value)
 {
-  char data_buffer[1024];
-  snprintf(data_buffer, 256, "{\"ts\":%u000, \"values\":{\"%s\":%lf}}", ts, key, value);
+  char data_buffer[MQTT_BRIDGE_MAX_STRLEN];
+  snprintf(data_buffer, MQTT_BRIDGE_MAX_STRLEN, 
+      "{\"ts\":%u000, \"values\":{\"%s\":%lf}}", ts, key, value);
 
   if(data->verbose)
   {
@@ -55,7 +56,7 @@ int mqtt_publish_thingsboard(homeauto_data *data, uint32_t ts, char *key, double
   pubmsg.qos = 1;
   pubmsg.retained = 0;
   
-  MQTTAsync_sendMessage(data->mqtt_out.client, "v1/devices/me/telemetry", &pubmsg, &opts);
+  MQTTAsync_sendMessage(data->mqtt_out.client, MQTT_BRIDGE_TB_TOPIC, &pubmsg, &opts);
 }
 
 int mqtt_message_callback(void *context, char *topic_name, int topic_len, MQTTAsync_message *message)
@@ -225,49 +226,69 @@ int read_config(homeauto_data *data, const char* config_file)
   {
     fprintf(stderr, "%s:%d - %s\n", config_error_file(&cfg),
         config_error_line(&cfg), config_error_text(&cfg));
-    config_destroy(&cfg);
-    return 0;
+    goto error; 
   }
 
-  read_config_server(&cfg, &data->mqtt_in, "server_in"); 
-  read_config_server(&cfg, &data->mqtt_out, "server_out"); 
+  if(!read_config_server(&cfg, &data->mqtt_in, "server_in"))
+  {
+    goto error;
+  }
+
+  if(!read_config_server(&cfg, &data->mqtt_out, "server_out") )
+  {
+    goto error;
+  }
 
   setting = config_lookup(&cfg, "telemetry_data");
-  if(setting != NULL)
+  if(setting == NULL)
   {
-    unsigned int count = config_setting_length(setting);
-    unsigned int i;
-    unsigned int j = 0;
-    for(i = 0; i < count; ++i)
-    {
-      config_setting_t *datum = config_setting_get_elem(setting, i);
-      const char* _topic;
-      const char* _key;
-      double _factor;
-      int _qos;
-      if(!(config_setting_lookup_string(datum, "key", &_key)
-            && config_setting_lookup_string(datum, "topic", &_topic)
-            && config_setting_lookup_int(datum, "qos", &_qos)
-            && config_setting_lookup_float(datum, "factor", &_factor)
-        ))
-      {
-        fprintf(stderr, "Error in config file\n");
-        continue;
-      }
-
-      // Now store into structure
-      
-      strcpy(data->topic[j].key, _key);
-      strcpy(data->topic[j].topic, _topic);
-      data->topic[j].qos = _qos;
-      data->topic[j].factor = _factor;
-
-      fprintf(stderr, "Configured topic %s with key %s. QOS = %d factor = %lf\n",
-          data->topic[j].topic, data->topic[j].key, data->topic[j].qos, data->topic[j].factor);
-      j++;
-    }
-    data->topics = j;
+    fprintf(stderr, "Could not find telemetry data in config file....\n");
+    goto error;
   }
+
+  unsigned int count = config_setting_length(setting);
+  if(count > MQTT_BRIDGE_MAX_TOPICS)
+  {
+    fprintf(stderr, "Config file contains too many topics/....\n");
+    goto error;
+  }
+  unsigned int i;
+  unsigned int j = 0;
+  for(i = 0; i < count; ++i)
+  {
+    config_setting_t *datum = config_setting_get_elem(setting, i);
+    const char* _topic;
+    const char* _key;
+    double _factor;
+    int _qos;
+    if(!(config_setting_lookup_string(datum, "key", &_key)
+          && config_setting_lookup_string(datum, "topic", &_topic)
+          && config_setting_lookup_int(datum, "qos", &_qos)
+          && config_setting_lookup_float(datum, "factor", &_factor)
+        ))
+    {
+      fprintf(stderr, "Error in config file reading topic\n");
+      goto error;
+    }
+
+    // Now store into structure
+
+    strcpy(data->topic[j].key, _key);
+    strcpy(data->topic[j].topic, _topic);
+    data->topic[j].qos = _qos;
+    data->topic[j].factor = _factor;
+
+    fprintf(stderr, "Configured topic %s with key %s. QOS = %d factor = %lf\n",
+        data->topic[j].topic, data->topic[j].key, data->topic[j].qos, data->topic[j].factor);
+    j++;
+  }
+  data->topics = j;
+  config_destroy(&cfg);
+  return 1;
+
+error:
+  config_destroy(&cfg);
+  return 0;
 }
 
 int main(int argc, char* argv[])
