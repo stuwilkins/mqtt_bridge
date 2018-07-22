@@ -297,10 +297,14 @@ int main(int argc, char* argv[])
 	int ch;
   char config_file[512];
 
+  // Start by setting some defualts
+
 	homeauto_data data;
 	data.mqtt_in.connected = 0;
 	data.mqtt_out.connected = 0;
   data.verbose = 0;
+
+  // Parse the command line
 
   while(1)
   {
@@ -339,11 +343,17 @@ int main(int argc, char* argv[])
       case '?':
         break;
       default:
-        abort();
+        return EXIT_FAILURE;
     }
   }
 
-  read_config(&data, config_file);
+  if(!read_config(&data, config_file))
+  {
+    fprintf(stderr, "Unable to read config file ... exiting ...\n");
+    return EXIT_FAILURE;
+  }
+
+  // Setup the connection options 
 
   MQTTAsync_connectOptions mqtt_conn_opts_out = MQTTAsync_connectOptions_initializer;
   mqtt_conn_opts_out.username = data.mqtt_out.username;
@@ -359,10 +369,14 @@ int main(int argc, char* argv[])
   mqtt_conn_opts_in.onSuccess = mqtt_in_connect;
 	mqtt_conn_opts_in.context = &data;
 
+  // Create the MQTT Async Objects
+
 	MQTTAsync_create(&data.mqtt_out.client, data.mqtt_out.server, data.mqtt_out.client_id,
 			MQTTCLIENT_PERSISTENCE_NONE, NULL);
 	MQTTAsync_create(&data.mqtt_in.client, data.mqtt_in.server, data.mqtt_in.client_id,
 			MQTTCLIENT_PERSISTENCE_NONE, NULL);
+
+  // Set the nessesary callbacks
 
 	MQTTAsync_setCallbacks(data.mqtt_out.client, &data, mqtt_out_connlost, NULL, NULL);
 	MQTTAsync_setCallbacks(data.mqtt_in.client, &data, mqtt_in_connlost, mqtt_message_callback, NULL);
@@ -372,7 +386,7 @@ int main(int argc, char* argv[])
   if((rc = MQTTAsync_connect(data.mqtt_out.client, &mqtt_conn_opts_out)) != MQTTASYNC_SUCCESS)
   {
       printf("Failed to connect, return code %d\n", rc);
-      exit(EXIT_FAILURE);
+      return EXIT_FAILURE;
   }
 
   fprintf(stderr, "Connecting to input MQTT .....\n");
@@ -380,7 +394,7 @@ int main(int argc, char* argv[])
 	if ((rc = MQTTAsync_connect(data.mqtt_in.client, &mqtt_conn_opts_in)) != MQTTASYNC_SUCCESS)
 	{
 		printf("Failed to connect, return code %d\n", rc);
-		exit(EXIT_FAILURE);
+		return EXIT_FAILURE;
 	}
 
   fprintf(stderr, "Starting Busy Loop .....\n");
@@ -388,5 +402,5 @@ int main(int argc, char* argv[])
   {
     pause();
   }
-	return rc;
+	return EXIT_SUCCESS;
 }
