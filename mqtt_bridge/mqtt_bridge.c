@@ -24,6 +24,7 @@
 #include <libconfig.h>
 #include <sys/types.h>
 #include <MQTTAsync.h>
+#include <jsmn.h>
 #include <getopt.h> 
 #include "mqtt_bridge.h"
 
@@ -59,7 +60,28 @@ int mqtt_publish_thingsboard(homeauto_data *data, uint32_t ts, char *key, double
   MQTTAsync_sendMessage(data->mqtt_out.client, MQTT_BRIDGE_TB_TOPIC, &pubmsg, &opts);
 }
 
-int mqtt_message_callback(void *context, char *topic_name, int topic_len, MQTTAsync_message *message)
+int mqtt_out_message_callback(void *context, char *topic_name, int topic_len, MQTTAsync_message *message)
+{
+    homeauto_data *data = (homeauto_data*)context;
+
+    char method[128];
+    char char_param[128];
+    int int_param;
+    int i = sscanf(message->payload, "{\"method\":\"%[^\"]\",\"params\":\"%d\"}", &method, &int_param);
+    if(i == 2)
+    {
+      fprintf(stderr, "i = %d, method = %s, int param = %d\n", i, method, int_param);
+    } else if(i == 1) {
+      i = sscanf(message->payload, "{\"method\":\"%[^\"]\",\"params\":%[^}]}", &method, &char_param);
+      fprintf(stderr, "i = %d, method = %s, params = %s\n", i, method, char_param);
+    }
+
+    MQTTAsync_freeMessage(&message);
+    MQTTAsync_free(topic_name);
+    return 1;
+}
+
+int mqtt_in_message_callback(void *context, char *topic_name, int topic_len, MQTTAsync_message *message)
 {
     char *payloadptr = message->payload;
     homeauto_data *data = (homeauto_data*)context;
@@ -115,7 +137,7 @@ void mqtt_in_connect(void* context, MQTTAsync_successData* response)
     if ((rc = MQTTAsync_subscribe(data->mqtt_in.client, data->topic[i].topic, 
             data->topic[i].qos, &opts)) != MQTTASYNC_SUCCESS)
     {
-      fprintf(stderr, "Failed to subscribe to , return code %d\n", data->topic[i].topic, rc);
+      fprintf(stderr, "Failed to subscribe to %s, return code %d\n", data->topic[i].topic, rc);
     } else {
       fprintf(stderr, "Subscribed to %s\n", data->topic[i].topic);
     }
@@ -128,6 +150,19 @@ void mqtt_in_connect(void* context, MQTTAsync_successData* response)
 void mqtt_out_connect(void* context, MQTTAsync_successData* response)
 {
 	homeauto_data* data = (homeauto_data*)context;
+
+  int rc;
+  const char* topic = "v1/devices/me/rpc/request/+";
+	MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
+	opts.context = data;
+  if((rc = MQTTAsync_subscribe(data->mqtt_out.client, topic, 1,
+          &opts)) != MQTTASYNC_SUCCESS)
+  {
+    fprintf(stderr, "Failed to subscribe to , return code %d\n", topic, rc);
+  } else {
+    fprintf(stderr, "Subscribed to %s\n", topic);
+  }
+
 	fprintf(stderr, "MQTT Connection OUT connected.\n");
 	data->mqtt_out.connected = 1;	
 }
@@ -353,6 +388,10 @@ int main(int argc, char* argv[])
     return EXIT_FAILURE;
   }
 
+  // Setup the parser
+
+  jsmn_init(&data.parser_out);
+
   // Setup the connection options 
 
   MQTTAsync_connectOptions mqtt_conn_opts_out = MQTTAsync_connectOptions_initializer;
@@ -378,8 +417,8 @@ int main(int argc, char* argv[])
 
   // Set the nessesary callbacks
 
-	MQTTAsync_setCallbacks(data.mqtt_out.client, &data, mqtt_out_connlost, NULL, NULL);
-	MQTTAsync_setCallbacks(data.mqtt_in.client, &data, mqtt_in_connlost, mqtt_message_callback, NULL);
+	MQTTAsync_setCallbacks(data.mqtt_out.client, &data, mqtt_out_connlost, mqtt_out_message_callback, NULL);
+	MQTTAsync_setCallbacks(data.mqtt_in.client, &data, mqtt_in_connlost, mqtt_in_message_callback, NULL);
 
   fprintf(stderr, "Connecting to output MQTT .....\n");
 

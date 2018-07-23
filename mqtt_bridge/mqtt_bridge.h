@@ -24,6 +24,9 @@
 
 #define MQTT_BRIDGE_TB_TOPIC        "v1/devices/me/telemetry"
 
+#include <jsmn.h>
+#include <MQTTAsync.h>
+
 typedef struct {
   char topic[MQTT_BRIDGE_MAX_STRLEN];
   char key[MQTT_BRIDGE_MAX_STRLEN];
@@ -46,6 +49,7 @@ typedef struct {
   int verbose;
   mqtt_connection mqtt_in;
   mqtt_connection mqtt_out;
+  jsmn_parser parser_out;
 } homeauto_data;
 
 #endif
