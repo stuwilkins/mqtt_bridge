@@ -48,7 +48,6 @@ typedef struct {
   int verbose;
   mqtt_connection mqtt_in;
   mqtt_connection mqtt_out;
-  jsmn_parser parser_out;
 } homeauto_data;
 
 #endif
