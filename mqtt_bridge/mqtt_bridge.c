@@ -24,9 +24,11 @@
 #include <libconfig.h>
 #include <sys/types.h>
 #include <MQTTAsync.h>
-#include <jsmn.h>
 #include <getopt.h> 
+#include <time.h>
 #include "mqtt_bridge.h"
+
+unsigned long watchdog;
 
 void mqtt_on_success(void* context, MQTTAsync_successData* response)
 {
@@ -120,6 +122,8 @@ int mqtt_in_message_callback(void *context, char *topic_name, int topic_len, MQT
 
     MQTTAsync_freeMessage(&message);
     MQTTAsync_free(topic_name);
+
+    watchdog = (unsigned long)time(NULL);
     return 1;
 }
 
@@ -388,10 +392,6 @@ int main(int argc, char* argv[])
     return EXIT_FAILURE;
   }
 
-  // Setup the parser
-
-  jsmn_init(&data.parser_out);
-
   // Setup the connection options 
 
   MQTTAsync_connectOptions mqtt_conn_opts_out = MQTTAsync_connectOptions_initializer;
@@ -437,9 +437,17 @@ int main(int argc, char* argv[])
 	}
 
   fprintf(stderr, "Starting Busy Loop .....\n");
+  watchdog = (unsigned long)time(NULL);
 	while(1)
   {
-    pause();
+    sleep(5);
+    unsigned long diff = (unsigned long)time(NULL) - watchdog;
+    if(diff > 100)
+    {
+      fprintf(stderr, "Exiting due to watchdog : timer = %ld\n", diff);
+      return EXIT_FAILURE;
+    }
   }
+
 	return EXIT_SUCCESS;
 }

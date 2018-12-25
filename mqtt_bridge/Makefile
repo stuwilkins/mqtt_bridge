@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-I.
-LDFLAGS=-lconfig -lpaho-mqtt3a -ljsmn
+LDFLAGS=-lconfig -lpaho-mqtt3a
 DEPS=mqtt_bridge.h
 src = $(wildcard *.c)
 obj = $(src:.c=.o)
