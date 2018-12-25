@@ -24,7 +24,6 @@
 
 #define MQTT_BRIDGE_TB_TOPIC        "v1/devices/me/telemetry"
 
-#include <jsmn.h>
 #include <MQTTAsync.h>
 
 typedef struct {

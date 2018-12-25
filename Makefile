@@ -1,6 +1,7 @@
 INSTALL = /usr/bin/install -c
 INSTALLDATA = /usr/bin/install -c -m 644
 SUBDIRS = mqtt_bridge
+
 ifeq ($(PREFIX),)
 	PREFIX := /usr/local
 endif
